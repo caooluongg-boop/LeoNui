@@ -116,12 +116,12 @@ let me=null,mate=null;
 let time=0,paused=false,falls=0,flashT=0,rsCd=0,chainOff=0,trans=null,netT=0,bestM=0,roomCode='',hintT=0;
 const cam={x:MAPW/2,y:0};
 let W=1,H=1,dpr=1,S=1;
-const cv=$('c'),ctx=cv.getContext('2d');
+const cv=$('c');let ctx=cv.getContext('2d');
 let peer=null,conn=null;
 const IMG={},PAT={};
 ['logo','char_blue','char_red','bg_1','bg_2','bg_3','bg_4','bg_5','rock_1','rock_2','rock_3','rock_4','rock_5'].forEach(n=>{
   const i=new Image();
-  i.onload=()=>{IMG[n]=i;if(n==='logo'){$('logo').src=i.src;$('logo').style.display='block';$('mtitle').style.display='none';}};
+  i.onload=()=>{IMG[n]=i;if(map)map.chunks={};if(n==='logo'){$('logo').src=i.src;$('logo').style.display='block';$('mtitle').style.display='none';}};
   i.src=n+'.png';
 });
 function getPat(n){if(IMG[n]&&!PAT[n])PAT[n]=ctx.createPattern(IMG[n],'repeat');return PAT[n]||null;}
@@ -154,7 +154,7 @@ const stick={id:null,bx:0,by:0,x:0,y:0};
 const pb={x:0,y:0,r:22},mb={x:0,y:0,r:22},sb={x:0,y:0,r:22};
 let touchUI=('ontouchstart' in window)||(navigator.maxTouchPoints>0);
 function resize(){
-  W=window.innerWidth;H=window.innerHeight;dpr=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth;H=window.innerHeight;dpr=Math.min(window.devicePixelRatio||1,1.5);
   cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
   cv.style.width=W+'px';cv.style.height=H+'px';
   S=H/VIEWH;
@@ -216,6 +216,7 @@ function loadMap(idx){
   const f=[.88,.94,1,1.06,1.12];
   map={idx,th,g:genGrid(idx,th),startY:(ROWS-10)*C-R,goalY:270,
     sh:{1:f.map(k=>shade(th.rock,k)),2:f.map(k=>shade(th.wall,k)),3:f.map(k=>shade('#a9dcf3',k))}};
+  map.chunks={};map.hot=[];for(let i=0;i<map.g.length;i++)if(map.g[i]===4)map.hot.push([i%COLS,(i/COLS)|0]);
 }
 function cellAt(c,r){
   if(c<0||c>=COLS)return 2;
@@ -707,11 +708,8 @@ function rrPath(x,y,w,h,tl,tr,br,bl){
   if(tl)ctx.quadraticCurveTo(x,y,x+tl,y);else ctx.lineTo(x,y);
   ctx.closePath();
 }
-function drawTerrain(x0,y0,x1,y1){
-  const th=map.th,sh=map.sh;
-  const c0=Math.floor(x0/C)-1,c1=Math.ceil(x1/C)+1,r0=Math.floor(y0/C)-1,r1=Math.ceil(y1/C)+1;
-  for(let r=r0;r<=r1;r++)for(let c=c0;c<=c1;c++){
-    const t=cellAt(c,r);if(!t)continue;
+function drawCell(c,r){
+  const th=map.th,sh=map.sh,t=cellAt(c,r);if(!t)return;
     const x=c*C,y=r*C,eT=!cellAt(c,r-1),eB=!cellAt(c,r+1),eL=!cellAt(c-1,r),eR=!cellAt(c+1,r),h=hash(c,r);
     const pt=t===1?getPat('rock_'+(mapIdx+1)):null;
     if(t===4){const f=.5+.5*Math.sin(time*3+c*.9+r*.6);ctx.fillStyle='rgb(255,'+((60+f*100)|0)+','+((10+f*20)|0)+')';}
@@ -737,7 +735,23 @@ function drawTerrain(x0,y0,x1,y1){
     if(eB){ctx.fillStyle='rgba(0,0,0,.22)';ctx.fillRect(x+bl*.5,y+C-5,C+.6-bl*.5-br*.5,5);}
     if(eL){ctx.fillStyle='rgba(0,0,0,.14)';ctx.fillRect(x,y+tl*.5,3,C-tl*.5);}
     if(eR){ctx.fillStyle='rgba(0,0,0,.14)';ctx.fillRect(x+C-3,y+tr*.5,3.6,C-tr*.5);}
+}
+const CHK=16,PAD=14;
+function getChunk(cx,cy){
+  const k=cy*100+cx;let ch=map.chunks[k];if(ch)return ch;
+  const cn=document.createElement('canvas');cn.width=cn.height=CHK*C+PAD*2;
+  const cc=cn.getContext('2d'),sv=ctx;
+  cc.translate(PAD-cx*CHK*C,PAD-cy*CHK*C);ctx=cc;
+  for(let r=cy*CHK-1;r<=(cy+1)*CHK;r++)for(let c=cx*CHK-1;c<=(cx+1)*CHK;c++)if(cellAt(c,r)!==4)drawCell(c,r);
+  ctx=sv;map.chunks[k]=cn;return cn;
+}
+function drawTerrain(x0,y0,x1,y1){
+  const n=CHK*C,a=Math.max(0,Math.floor(x0/n)),b=Math.floor(x1/n),d=Math.max(0,Math.floor(y0/n)),e=Math.floor(y1/n);
+  for(let cy=d;cy<=e;cy++)for(let cx=a;cx<=b;cx++){
+    if(cx*CHK>=COLS||cy*CHK>=ROWS)continue;
+    ctx.drawImage(getChunk(cx,cy),cx*n-PAD,cy*n-PAD);
   }
+  for(const q of map.hot){const px=q[0]*C,py=q[1]*C;if(px>=x0-C&&px<=x1&&py>=y0-C&&py<=y1)drawCell(q[0],q[1]);}
 }
 function drawDecor(){
   const fx=MAPW/2,fy=9*C;
