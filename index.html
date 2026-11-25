@@ -144,13 +144,16 @@ const IMG={},PAT={};
   i.onload=()=>{IMG[n]=i;if(map)map.chunks={};if(n==='logo'){$('logo').src=i.src;$('logo').style.display='block';$('mtitle').style.display='none';}};
   i.src='assets/'+n+'.png';
 });
-const STK=[{n:'meo_chi_tay'},{n:'kiss'},{n:'meo_cuoi'},{n:'doi_doi'}];
-STK.forEach(k=>{
-  const i=new Image();let tried=false;
-  i.onerror=()=>{if(!tried){tried=true;i.src='stickers/'+k.n+'.png';}};
+const STK_DIRS=['assets/stickers/','','assets/'];
+function loadStk(k,di){
+  if(di>=STK_DIRS.length){console.error('Không tải được sticker: '+k.n);return;}
+  const i=new Image();
+  i.onerror=()=>loadStk(k,di+1);
   i.onload=()=>{k.im=i;if(k.pimg)k.pimg.src=i.src;};
-  i.src='assets/stickers/'+k.n+'.png';
-});
+  i.src=STK_DIRS[di]+k.n+'.png';
+}
+const STK=[{n:'meo_chi_tay'},{n:'kiss'},{n:'meo_cuoi'},{n:'doi_doi'}];
+STK.forEach(k=>loadStk(k,0));
 function getPat(n){if(IMG[n]&&!PAT[n])PAT[n]=ctx.createPattern(IMG[n],'repeat');return PAT[n]||null;}
 function spr(im,i,x,y,w,h,f){const cw=im.width/4;ctx.save();ctx.translate(x,y);if(f<0)ctx.scale(-1,1);ctx.drawImage(im,i*cw,0,cw,im.height,-w/2,-h/2,w,h);ctx.restore();}
 let actx=null,sndOn=lsGet('xl_snd')!=='0';
