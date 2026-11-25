@@ -60,7 +60,7 @@ input#ci{font-size:min(calc(var(--vh)*12),60px);width:min(calc(var(--vw)*70),420
     <button class="btn alt" id="bHost">Tạo phòng</button>
     <button class="btn alt" id="bJoin">Vào phòng</button>
   </div>
-  <div class="help">Cần trái: hướng tay vươn tới · Giữ TAY TRÁI / TAY PHẢI để bám đá · Gạt lên khi chưa bám = nhảy · Hết sức tay thì buông · Té quá xa hoặc chạm đá đỏ = leo lại từ đầu màn · Chơi 2 người: bấm biểu tượng mic (hoặc phím M) để nói, phím N để tắt loa</div>
+  <div class="help">Cần trái: hướng tay vươn tới · Giữ TAY TRÁI / TAY PHẢI để bám đá · Gạt lên khi chưa bám = nhảy · Hết sức tay thì buông · Té quá xa thì rơi tới đâu nằm đó, chạm đá đỏ thì về chỗ bám gần nhất · Chơi 2 người: bấm biểu tượng mic (hoặc phím M) để nói, phím N để tắt loa</div>
   <div class="best" id="best"></div>
 </div>
 
@@ -109,7 +109,7 @@ input#ci{font-size:min(calc(var(--vh)*12),60px);width:min(calc(var(--vw)*70),420
 const $=id=>document.getElementById(id);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 
-const C=32,COLS=64,ROWS=400,MAPW=C*COLS,MAPH=C*ROWS;
+const C=32,COLS=64,GTOP=390,GROUND_EXTRA=14,ROWS=GTOP+10+GROUND_EXTRA,MAPW=C*COLS,MAPH=C*ROWS;
 const NMAPS=5,MPM=20000;
 const R=26,ARM=66,CHAIN_L=190,FALL_LIMIT=560,VIEWH=760;
 
@@ -340,7 +340,7 @@ function genGrid(idx,th){
       if(d<=1)set(c,r,t,ow);
     }
   };
-  const gTop=ROWS-10;
+  const gTop=GTOP;
   for(let r=gTop;r<ROWS;r++)for(let c=0;c<COLS;c++)g[r*COLS+c]=1;
   let cx=COLS/2,cy=gTop-3,step=0,lastRx=6;
   while(cy>19){
@@ -375,7 +375,7 @@ function genGrid(idx,th){
 function loadMap(idx){
   mapIdx=idx;const th=THEMES[idx];
   const f=[.88,.94,1,1.06,1.12];
-  map={idx,th,g:genGrid(idx,th),startY:(ROWS-10)*C-R,goalY:270,
+  map={idx,th,g:genGrid(idx,th),startY:GTOP*C-R,goalY:270,
     sh:{1:f.map(k=>shade(th.rock,k)),2:f.map(k=>shade(th.wall,k)),3:f.map(k=>shade('#a9dcf3',k))}};
   map.chunks={};map.hot=[];for(let i=0;i<map.g.length;i++)if(map.g[i]===4)map.hot.push([i%COLS,(i/COLS)|0]);
 }
@@ -388,7 +388,7 @@ function cellAt(c,r){
 
 function newClimber(){
   const h=()=>({on:false,x:0,y:0,ax:0,ay:0,tx:0,ty:0});
-  return{x:0,y:0,vx:0,vy:0,face:1,g:false,gt:0,ice:false,dead:false,stam:100,tired:0,airTop:0,jumpCd:0,tension:0,hand:[h(),h()],vis:false,init:false,tx:0,ty:0,tvx:0,tvy:0};
+  return{x:0,y:0,vx:0,vy:0,face:1,g:false,gt:0,ice:false,dead:false,stam:100,tired:0,airTop:0,jumpCd:0,tension:0,falling:false,lastGrip:{x:0,y:0},hand:[h(),h()],vis:false,init:false,tx:0,ty:0,tvx:0,tvy:0};
 }
 function spawnPos(){
   const y=map.startY;
@@ -398,6 +398,7 @@ function spawnPos(){
 function respawn(){
   const s=spawnPos();
   me.x=s.x;me.y=s.y;me.vx=0;me.vy=0;me.stam=100;me.tired=0;me.g=false;me.gt=0;me.dead=false;me.airTop=me.y;me.tension=0;
+  me.falling=false;me.lastGrip={x:s.x,y:s.y};
   me.hand.forEach(h=>{h.on=false;h.x=me.x;h.y=me.y;});
   chainOff=.5;
   if(mate){
@@ -405,7 +406,7 @@ function respawn(){
     mate.x=mate.tx=ox;mate.y=mate.ty=s.y;mate.vx=mate.vy=mate.tvx=mate.tvy=0;mate.init=true;
     mate.hand.forEach(h=>{h.on=false;h.x=h.tx=ox;h.y=h.ty=s.y;});
   }
-  cam.x=MAPW/2;cam.y=me.y-40;
+  cam.x=MAPW/2;cam.y=me.y+120;
 }
 
 function castHand(p,tx,ty){
@@ -660,7 +661,7 @@ function onData(d){
     mate.face=a[11]||1;mate.stam=a[12];
     if(!mate.init){mate.x=mate.tx;mate.y=mate.ty;mate.init=true;mate.hand.forEach(h=>{h.x=h.tx;h.y=h.ty;});}
   }else if(d.t==='f'){
-    if(rsCd<=0&&state==='play'){doFall(false);toast('Đồng đội té, cả hai leo lại từ đầu.',2500);}
+    if(rsCd<=0&&state==='play'){doFall(false);toast('Đồng đội té!',1500);}
   }else if(d.t==='n'){
     if(state==='play'&&!trans&&mapIdx<d.m)beginTrans(d.m);
   }else if(d.t==='bye'){
@@ -831,10 +832,14 @@ function curMeters(){
   const prog=clamp((map.startY-me.y)/(map.startY-map.goalY),0,1);
   return(mapIdx+prog)*MPM;
 }
-function doFall(send){
+function doFall(send,hot){
   rsCd=.8;falls++;flashT=1.4;SFX.fall();
   if(send&&mate)netSend({t:'f'});
-  respawn();
+  if(hot){
+    const g=me.lastGrip;
+    me.x=g.x;me.y=g.y;me.vx=0;me.vy=0;me.dead=false;me.g=false;me.gt=0;me.airTop=me.y;me.falling=false;
+    me.hand.forEach(h=>{h.on=false;h.x=me.x;h.y=me.y;});
+  }
 }
 function beginTrans(next){trans={phase:0,t:0,next};clearInput();}
 function updateTrans(dt){
@@ -877,12 +882,13 @@ function update(dt){
   if(me.stam<=0){me.stam=0;me.tired=1.2;me.hand.forEach(h=>{h.on=false;});}
   if(me.tired>0)me.tired-=dt;
   const safe=me.gt>0||n>0;
-  if(safe)me.airTop=me.y;
-  else{
+  if(safe){
+    me.airTop=me.y;me.falling=false;me.lastGrip.x=me.x;me.lastGrip.y=me.y;
+  }else{
     if(me.y<me.airTop)me.airTop=me.y;
-    if(me.y-me.airTop>FALL_LIMIT&&rsCd<=0)doFall(true);
+    if(!me.falling&&me.y-me.airTop>FALL_LIMIT&&rsCd<=0){me.falling=true;doFall(true,false);}
   }
-  if(me.dead&&rsCd<=0)doFall(true);
+  if(me.dead&&rsCd<=0)doFall(true,true);
   if(me.y<map.goalY&&me.gt>0&&!trans)completeMap();
   if(mate)updateMate(dt);
   if(mode==='multi'){netT+=dt;if(netT>=.05){netT=0;sendState();}}
@@ -904,7 +910,7 @@ function updateMate(dt){
 function updateCam(dt){
   let tx=me.x,ty=me.y;
   if(mate&&mate.vis){tx=(me.x+mate.x)/2;ty=(me.y+mate.y)/2;}
-  ty-=40;
+  ty+=120;
   const hw=W/2/S;
   if(hw*2>=MAPW)tx=MAPW/2;else tx=clamp(tx,hw,MAPW-hw);
   const k=1-Math.exp(-dt*6);
