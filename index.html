@@ -670,7 +670,7 @@ function onData(d){
   }else if(d.t==='k'){
     if(state==='play'&&mate&&d.i>=0&&d.i<STK.length)mateStk={i:d.i|0,t:time};
   }else if(d.t==='mic'){
-    voice.mateOn=!!d.on;if(!d.on)detachRemote();
+    voice.mateOn=!!d.on;if(!d.on)detachRemote();else toast('Đồng đội đã bật mic',1500);
   }else if(d.t==='e'){
     env.tod=d.d;env.w=d.w;env.ti=d.i;env.fix=!!d.f;env.wfix=!!d.x;
   }else if(d.t==='l'){
@@ -698,6 +698,13 @@ function opusSdp(sdp){
     return m;
   });
 }
+function unlockAudio(){
+  if(!voice.audio){voice.audio=new Audio();voice.audio.autoplay=true;voice.audio.volume=1;voice.audio.setAttribute('playsinline','');}
+  try{const pr=voice.audio.play();if(pr&&pr.catch)pr.catch(()=>{});}catch(e){}
+  ac();
+}
+document.addEventListener('pointerdown',unlockAudio,{once:true});
+document.addEventListener('keydown',unlockAudio,{once:true});
 function attachRemote(st){
   if(!voice.audio){voice.audio=new Audio();voice.audio.autoplay=true;voice.audio.volume=1;voice.audio.setAttribute('playsinline','');}
   voice.audio.srcObject=st;voice.audio.muted=voice.deaf;voice.audio.volume=1;
@@ -765,6 +772,7 @@ async function micOn(){
     const ch=buildMicChain(st);
     voice.stream=st;voice.nodes=ch.nodes;voice.on=true;
     voice.out=peer.call(conn.peer,ch.stream,{sdpTransform:opusSdp});
+    voice.out.on('error',()=>toast('Không gửi được giọng nói, thử tắt bật mic lại.',3000));
     tuneSender(voice.out);
     netSend({t:'mic',on:1});
     toast('Đã bật mic',1500);
