@@ -429,8 +429,9 @@ function handLogic(p,inp,dt){
   const th=map.th,mag=Math.hypot(inp.sx,inp.sy);
   p.jumpCd-=dt;
   if(inp.sx>.3)p.face=1;else if(inp.sx<-.3)p.face=-1;else if(Math.abs(p.vx)>60)p.face=p.vx>0?1:-1;
-  if(p.gt>0&&inp.sy<-.6&&!inp.gl&&!inp.gr&&p.jumpCd<=0){
-    p.vy=-Math.sqrt(2*1400*th.grav*135);p.gt=0;p.g=false;p.jumpCd=.35;SFX.jump();
+  if(inp.sy>-.3)p.jumpLock=false;
+  if(p.gt>0&&inp.sy<-.6&&!inp.gl&&!inp.gr&&p.jumpCd<=0&&!p.jumpLock){
+    p.vy=-Math.sqrt(2*1400*th.grav*135);p.gt=0;p.g=false;p.jumpCd=.35;p.jumpLock=true;SFX.jump();
   }
   for(let i=0;i<2;i++){
     const h=p.hand[i],want=i===0?inp.gl:inp.gr,side=i===0?-1:1;
@@ -553,18 +554,26 @@ cv.addEventListener('pointerdown',e=>{
     const b=btn[k];
     if(b.id===null&&Math.hypot(x-b.x,y-b.y)<b.r+22){b.id=e.pointerId;return;}
   }
-  if(x<W*.6&&stick.id===null){stick.id=e.pointerId;stick.bx=x;stick.by=y;stick.x=x;stick.y=y;}
+  if(x<W*.6&&stick.id===null){stick.id=e.pointerId;stick.bx=x;stick.by=y;stick.x=x;stick.y=y;stick.lastMove=performance.now();}
 },{passive:false});
 cv.addEventListener('pointermove',e=>{
-  if(e.pointerId===stick.id){e.preventDefault();const mp=mapPt(e.clientX,e.clientY);stick.x=mp.x;stick.y=mp.y;}
+  if(e.pointerId===stick.id){e.preventDefault();const mp=mapPt(e.clientX,e.clientY);stick.x=mp.x;stick.y=mp.y;stick.lastMove=performance.now();}
 },{passive:false});
 function pUp(e){
   if(e.pointerId===stick.id)stick.id=null;
   if(e.pointerId===btn.L.id)btn.L.id=null;
   if(e.pointerId===btn.R.id)btn.R.id=null;
 }
+function releaseAll(){stick.id=null;btn.L.id=null;btn.R.id=null;}
 cv.addEventListener('pointerup',pUp);cv.addEventListener('pointercancel',pUp);
 cv.addEventListener('lostpointercapture',pUp);
+window.addEventListener('pointerup',pUp,true);
+window.addEventListener('pointercancel',pUp,true);
+document.addEventListener('touchend',e=>{if(e.touches.length===0)releaseAll();},{passive:true,capture:true});
+document.addEventListener('touchcancel',()=>releaseAll(),{passive:true,capture:true});
+window.addEventListener('blur',releaseAll);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAll();});
+window.addEventListener('pagehide',releaseAll);
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
